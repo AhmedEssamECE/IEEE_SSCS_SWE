@@ -1,125 +1,125 @@
+import java.io.*;
 import java.util.*;
 
 public class Student {
-    private static int nextId = 1;
-    private static final String FILE_NAME = "students.csv";
-    
-    private final int id;
     private String name;
     private int age;
-    private final Map<String, Course> courses = new HashMap<>();
-    
+    private final int id;
+    private List<Course> courses; // New field
+
+    private static Set<Integer> usedIds = new HashSet<>();
+    private static int nextId = 1;
+    private static final String FILE_NAME = "students.csv";
+
+    // Constructor
     public Student(String name, int age) {
-        this.id = nextId++;
         setName(name);
         setAge(age);
+        this.id = generateUniqueId();
+        this.courses = new ArrayList<>();
     }
-    
-    // Basic getters
-    public int getId() { return id; }
-    public String getName() { return name; }
-    public int getAge() { return age; }
-    public Collection<Course> getCourses() { return courses.values(); }
-    
-    // Validated setters
+
+    // Generate unique ID
+    private static int generateUniqueId() {
+        while (usedIds.contains(nextId)) {
+            nextId++;
+        }
+        usedIds.add(nextId);
+        return nextId++;
+    }
+
+    // Getters
+    public String getName() {
+        return name;
+    }
+
+    public int getAge() {
+        return age;
+    }
+
+    public int getId() {
+        return id;
+    }
+
+    public List<Course> getCourses() {
+        return Collections.unmodifiableList(courses);
+    }
+
+    // Setters
     public void setName(String name) {
         if (name == null || name.trim().isEmpty()) {
-            throw new IllegalArgumentException("Name cannot be empty");
+            throw new IllegalArgumentException("Name cannot be empty.");
         }
         this.name = name.trim();
     }
-    
+
     public void setAge(int age) {
-        if (age < 0 || age > 120) {
-            throw new IllegalArgumentException("Age must be between 0 and 120");
+        if (age < 5 || age > 120) {
+            throw new IllegalArgumentException("Age must be between 5 and 120.");
         }
         this.age = age;
     }
-    
-    // Course management
+
+    // Add course (no duplicates by name)
     public boolean addCourse(Course course) {
-        if (course == null) return false;
-        if (courses.containsKey(course.getName())) return false;
-        
-        courses.put(course.getName(), course);
+        for (Course c : courses) {
+            if (c.getName().equalsIgnoreCase(course.getName())) {
+                System.err.println("Course already exists: " + course.getName());
+                return false;
+            }
+        }
+        courses.add(course);
         return true;
     }
-    
+
+    // Remove course by name
     public boolean removeCourse(String courseName) {
-        if (courseName == null) return false;
-        return courses.remove(courseName.trim()) != null;
+        return courses.removeIf(c -> c.getName().equalsIgnoreCase(courseName));
     }
-    
+
+    // Average grade
     public double getAverageGrade() {
         if (courses.isEmpty()) return 0.0;
-        
-        double sum = 0.0;
-        for (Course course : courses.values()) {
-            sum += course.getGrade();
+        double total = 0;
+        for (Course c : courses) {
+            total += c.getGrade();
         }
-        return sum / courses.size();
+        return total / courses.size();
     }
-    
-    public List<Course> getCoursesSortedByGrade() {
-        List<Course> sortedCourses = new ArrayList<>(courses.values());
-        sortedCourses.sort(Comparator.comparingDouble(Course::getGrade).reversed());
-        return sortedCourses;
+
+    // Sort courses by grade (highest first)
+    public void sortCoursesByGrade() {
+        courses.sort((a, b) -> Double.compare(b.getGrade(), a.getGrade()));
     }
-    
-    // File operations
-    public void save() throws IOException {
-        try (PrintWriter out = new PrintWriter(new FileWriter(FILE_NAME, true))) {
-            out.println(toCsv());
+
+    // Save to file
+    public void saveToFile() {
+        try (FileWriter fw = new FileWriter(FILE_NAME, true);
+             BufferedWriter bw = new BufferedWriter(fw);
+             PrintWriter out = new PrintWriter(bw)) {
+
+            out.println(this.id + "," + this.name + "," + this.age);
+
+        } catch (IOException e) {
+            System.err.println("Error saving student: " + e.getMessage());
         }
     }
-    
-    private String toCsv() {
-        StringBuilder sb = new StringBuilder();
-        sb.append(id).append(",").append(name).append(",").append(age);
-        
-        for (Course course : courses.values()) {
-            sb.append(",").append(course.getName()).append(":").append(course.getGrade());
-        }
-        
-        return sb.toString();
-    }
-    
-    // Search functionality
-    public static List<Student> findByName(String name) throws IOException {
+
+    // Static search by name
+    public static List<Student> searchByName(List<Student> students, String query) {
         List<Student> results = new ArrayList<>();
-        if (name == null || name.trim().isEmpty()) return results;
-        
-        String searchTerm = name.trim().toLowerCase();
-        try (BufferedReader reader = new BufferedReader(new FileReader(FILE_NAME))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                String[] parts = line.split(",");
-                if (parts.length >= 2 && parts[1].toLowerCase().contains(searchTerm)) {
-                    results.add(fromCsv(line));
-                }
+        for (Student s : students) {
+            if (s.getName().toLowerCase().contains(query.toLowerCase())) {
+                results.add(s);
             }
         }
         return results;
     }
-    
-    private static Student fromCsv(String csvLine) {
-        String[] parts = csvLine.split(",");
-        Student student = new Student(parts[1], Integer.parseInt(parts[2]));
-        
-        for (int i = 3; i < parts.length; i++) {
-            String[] courseData = parts[i].split(":");
-            if (courseData.length == 2) {
-                Course course = new Course(courseData[0], Double.parseDouble(courseData[1]));
-                student.addCourse(course);
-            }
-        }
-        
-        return student;
-    }
-    
+
+    // toString
     @Override
     public String toString() {
-        return String.format("Student %d: %s, %d years (Avg Grade: %.1f)", 
-            id, name, age, getAverageGrade());
+        return "Student[ID=" + id + ", Name=" + name + ", Age=" + age +
+                ", Courses=" + courses + "]";
     }
 }
